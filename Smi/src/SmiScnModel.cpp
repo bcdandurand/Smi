@@ -64,16 +64,19 @@ SmiScnModel::~SmiScnModel()
     if (matrix_)
         delete matrix_;
 
-    if (maxNelsPerScenInStage)
+    if (maxNelsPerScenInStage){
         delete [] maxNelsPerScenInStage;
+    }
 
-	if (this->columnNode)
+	if (this->columnNode){
 		free(columnNode);
 		//delete [] columnNode;
+    }
 
-	if (this->rowNode)
+	if (this->rowNode){
 		free(rowNode);
 		//delete [] rowNode;
+    }
 
 }
 
@@ -485,6 +488,7 @@ double SmiScnModel::solveEEV(OsiSolverInterface *osiSolver, double objSense)
     return eev;
 }
 
+
 std::vector< std::pair<double,double> > SmiScnModel::solveWS(OsiSolverInterface *osiSolver, double objSense) 
 {
     OsiSolverInterface* tempPtr = osiStoch_;
@@ -514,7 +518,7 @@ std::vector< std::pair<double,double> > SmiScnModel::solveWS(OsiSolverInterface 
 
 
     // loop over all scenarios and solve each of it individually
-    for( int i = 0; i < this->smiTree_.getNumScenarios(); i++) {
+    for( int scn = 0; scn < this->smiTree_.getNumScenarios(); scn++) {
         // We have an empty model (zero cols,rows,els)
         ncol_=0;
         nrow_=0;
@@ -527,10 +531,10 @@ std::vector< std::pair<double,double> > SmiScnModel::solveWS(OsiSolverInterface 
         this->rstrt_ = new int[this->core_->getNumRows()+1];
         this->rstrt_[0] = 0;
         // Get all nodes for this scenario
-        std::vector<SmiScnNode*>& nodes = smiTree_.getScenario(i);
+        std::vector<SmiScnNode*>& nodes = smiTree_.getScenario(scn);
         // Call addNode on all these nodes
-        for (unsigned int i = 0; i < nodes.size(); i++) {
-            addNode(nodes[i],true);
+        for (unsigned int nn = 0; nn < nodes.size(); nn++) {
+            addNode(nodes[nn],true);
         }
 
         matrix_ = new CoinPackedMatrix(false,0,0);
@@ -542,8 +546,8 @@ std::vector< std::pair<double,double> > SmiScnModel::solveWS(OsiSolverInterface 
         osiStoch_->loadProblem(*matrix_,dclo_,dcup_,dobj_,drlo_,drup_); //This works only for same-dimensional subproblems.
 
         // load integer values in solver
-        for (unsigned int i = 0; i < intIndices.size(); i++) {
-            osiStoch_->setInteger(intIndices[i]);
+        for (unsigned int idx = 0; idx < intIndices.size(); idx++) {
+            osiStoch_->setInteger(intIndices[idx]);
         }
         //Set objSense
         osiStoch_->setObjSense(objSense);
@@ -682,6 +686,97 @@ void SmiScnModel::generateSolverArrays()
     //}
     //printf("\n Matrix printed \n");
 #endif
+}
+
+//Precondition: Assume that osiSolver has been default-constructed according to its desired sub-type
+//Postcondition: Problem data is initialized for osiSolver
+OsiSolverInterface * SmiScnModel::loadOsiSolverDataForScenarioSP(OsiSolverInterface *osiSolver, int scn)
+{
+
+    //Clean up previous stuff.
+    delete[] dclo_;
+    delete[] dcup_;
+    delete[] dobj_;
+    delete[] drlo_;
+    delete[] drup_;
+    delete matrix_;
+
+    // initialize arrays
+    this->dclo_ = new double[this->core_->getNumCols()];
+    this->dcup_ = new double[this->core_->getNumCols()];
+    this->dobj_ = new double[this->core_->getNumCols()];
+    this->drlo_ = new double[this->core_->getNumRows()];
+    this->drup_ = new double[this->core_->getNumRows()];
+
+    int tempNels = 0; //= nels_ ? nels_: this->core_->getNumCols()*this->core_->getNumRows(); //nels_ got set by det.eq. generations. If this is not done, we have a problem.
+    for (int stg = 0; stg < this->core_->getNumStages(); stg++)
+        tempNels += this->maxNelsPerScenInStage[stg];
+
+    // loop over all scenarios and solve each of it individually
+    //for( int scn = 0; scn < this->smiTree_.getNumScenarios(); scn++) {
+        // We have an empty model (zero cols,rows,els)
+        ncol_=0;
+        nrow_=0;
+        nels_=0;
+        //TODO: Create a new SolverObject by using the type of osiStoch. Need to load osiCoreData in the newly created osiStoch..
+        //osiStoch_->reset();
+        // initialize row-ordered matrix arrays
+        this->dels_ = new double[tempNels]; 
+        this->indx_ = new int[tempNels];
+        this->rstrt_ = new int[this->core_->getNumRows()+1];
+        this->rstrt_[0] = 0;
+        // Get all nodes for this scenario
+        std::vector<SmiScnNode*>& nodes = smiTree_.getScenario(scn);
+        // Call addNode on all these nodes
+        for (unsigned int nn = 0; nn < nodes.size(); nn++) {
+            addNode(nodes[nn],true);
+        }
+
+        matrix_ = new CoinPackedMatrix(false,0,0);
+        int *len=NULL;
+        // Assign values from current arrays (which get nulled thereafter)
+        matrix_->assignMatrix(false,ncol_,nrow_,nels_,
+            dels_,indx_,rstrt_,len);
+        // pass data to osiStoch
+        osiSolver->loadProblem(*matrix_,dclo_,dcup_,dobj_,drlo_,drup_); //This works only for same-dimensional subproblems.
+
+        // load integer values in solver
+        for (unsigned int idx = 0; idx < intIndices.size(); idx++) {
+            osiSolver->setInteger(intIndices[idx]);
+        }
+
+        //Delete new-ed objects
+        delete matrix_;
+        delete [] this->dels_;
+        delete [] this->indx_;
+        delete [] this->rstrt_;
+        matrix_ = 0; dels_ = 0; indx_ = 0; rstrt_ = 0;
+
+        //Print out Matrix.. if in Debug Mode
+        //TODO: Define proper Debug Mode..
+        //TODO: Printout obj-functions
+#if 0
+        for (int mi = 0; mi < osiSolver->getMatrixByRow()->getMinorDim();mi++){
+            std::cout << osiSolver->getObjCoefficients()[mi] << "*x" << mi << " + ";
+        }
+        std::cout << std::endl;
+        printf("\n Objective printed \n");
+        for (int mi = 0; mi < osiSolver->getMatrixByRow()->getMajorDim(); mi++){
+            printf("\n%g <= ", osiSolver->getRowLower()[mi]);
+            for (int mj = 0; mj < osiSolver->getMatrixByRow()->getMinorDim(); mj++){
+                printf("%g ",osiSolver->getMatrixByRow()->getCoefficient(mi,mj));
+            }
+            printf("<= %g",osiSolver->getRowUpper()[mi]);
+        }
+        printf("\n Matrix printed \n");
+        for (int mi = 0; mi < osiSolver->getNumCols(); mi++) {
+            printf("\n%g <= x%d <= %g",osiSolver->getColLower()[mi],mi,osiSolver->getColUpper()[mi]);
+        }
+        printf("\n");
+        printf("\n Var bounds printed \n");
+#endif
+    //}
+    return osiSolver;
 }
 
 //Christian: Generate Submodel Specified by Stage and Scenario Number

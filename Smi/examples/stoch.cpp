@@ -12,7 +12,7 @@ using namespace std;
 #include "SmiScnData.hpp"
 #include "OsiClpSolverInterface.hpp"
 
-#define DATASTOCHASTICDIR 
+#define DATASTOCHASTICDIR "/homes/bcdandurand/COIN-OR/Data/Stochastic"
 
 //forward declarations
 

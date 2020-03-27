@@ -487,10 +487,12 @@ ac_init_version=false
 # The variables have the same names as the options, with
 # dashes changed to underlines.
 cache_file=/dev/null
-exec_prefix=NONE
+# exec_prefix=NONE
+exec_prefix=/homes/bcdandurand/COIN-OR
 no_create=
 no_recursion=
-prefix=NONE
+# prefix=NONE
+prefix=/homes/bcdandurand/COIN-OR
 program_prefix=NONE
 program_suffix=NONE
 program_transform_name=s,x,x,
