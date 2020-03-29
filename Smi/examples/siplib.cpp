@@ -21,6 +21,7 @@ using namespace std;
 
 void testingMessage(const char * const);
 void SmpsIO(const char* const);
+void loadOsiSolverDataForScenarioSP(SmiScnModel smi, OsiSolverInterface *osi, int scn);
 int setQuadDiagCoeffs(OsiCpxSolverInterface *osi_cpx, double *diag_coeffs);
 int solveAsQMIP(OsiCpxSolverInterface *osi_cpx);
 
@@ -52,6 +53,15 @@ void SmpsIO(const char * const name )
         for (int kk=first_var_idx; kk<last_var_idx; kk++){
             diag_els[kk]=1.0;
         }
+        int status=0;
+        int nThreads=1;  //Might want to experiment with this if you're using the more recent versions of CPLEX
+        double MIP_TOL=1e-6;
+        int mode = 1; // mode = 0 for MIP, mode = 1 for QMIP
+        int opt_target;
+        //int opt_target=CPX_OPTIMALITYTARGET_OPTIMALCONVEX; //For problems known a priori to be convex
+        if (mode == 1){
+            opt_target=CPX_OPTIMALITYTARGET_OPTIMALGLOBAL;  //Use for nonconvex, e.g., QMIP
+        }
 		for (int ii=0 ; ii<numScenarios; ++ii){
             cout << "Subproblem: " << ii << endl;
             osi_cpx_scns[ii] = new OsiCpxSolverInterface();
@@ -59,12 +69,11 @@ void SmpsIO(const char * const name )
             osi_cpx_scns[ii]->setObjSense(1.0);  // Set objective sense, MIN=1.0
 	        osi_cpx_scns[ii]->messageHandler()->setLogLevel(0); //Nice hack to suppress all output
 
-            int status=0;
-            int nThreads=1;  //Might want to experiment with this if you're using the more recent versions of CPLEX
-            double MIP_TOL=1e-6;
             status=CPXsetintparam( osi_cpx_scns[ii]->getEnvironmentPtr(), CPXPARAM_Threads, 1);
 	        status=CPXsetintparam( osi_cpx_scns[ii]->getEnvironmentPtr(), CPXPARAM_Parallel, CPX_PARALLEL_DETERMINISTIC); //no iteration message until solution
 	        status=CPXsetintparam( osi_cpx_scns[ii]->getEnvironmentPtr(), CPXPARAM_Threads, nThreads); //no iteration message until solution
+        }
+		for (int ii=0 ; ii<numScenarios; ++ii){
             // Tolerance relevant parameters
             #if 0
 	        status=CPXsetdblparam( osi_cpx_scns[ii]->getEnvironmentPtr(), CPXPARAM_MIP_Tolerances_AbsMIPGap, MIP_TOL);
@@ -80,16 +89,12 @@ void SmpsIO(const char * const name )
             status=CPXsetintparam( osi_cpx_scns[ii]->getEnvironmentPtr(), CPXPARAM_Barrier_Display, 0); //turn off display
             #endif
             #if 0
-            //int opt_target=CPX_OPTIMALITYTARGET_OPTIMALCONVEX; //For problems known a priori to be convex
             #endif
-            int mode = 1; // mode = 0 for MIP, mode = 1 for QMIP
-            int opt_target;
             if (mode == 0){
 		        osi_cpx_scns[ii]->initialSolve();
                 osi_cpx_scns[ii]->branchAndBound();
             }
             else if (mode==1){
-                opt_target=CPX_OPTIMALITYTARGET_OPTIMALGLOBAL;  //Use for nonconvex, e.g., QMIP
 	            status=CPXsetintparam( osi_cpx_scns[ii]->getEnvironmentPtr(), CPXPARAM_OptimalityTarget, opt_target);
                 setQuadDiagCoeffs(osi_cpx_scns[ii], diag_els);
                 solveAsQMIP(osi_cpx_scns[ii]);
@@ -111,6 +116,9 @@ void testingMessage( const char * const msg )
 //  std::cerr <<msg;
   cout <<endl <<"*****************************************"
        <<endl <<msg <<endl;
+}
+void loadOsiSolverDataForScenarioSP(SmiScnModel smi, OsiSolverInterface *osi, int scn){
+
 }
 
 int setQuadDiagCoeffs(OsiCpxSolverInterface *osi_cpx, double *diag_coeffs){
