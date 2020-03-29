@@ -45,9 +45,10 @@ void SmpsIO(const char * const name )
 		smi.readSmps(name);
         std::vector<int> intIndices = smi.getIntIndices();
         cout << "Integer indices are: " << endl;
-        for(int ii=0; ii<intIndices.size(); ii++){
-            cout << " " << intIndices[ii];
-        }
+    //int* getIntegerInd(){ return core_->getIntegerIndices();}
+    //int getIntegerLen(){return core_->getIntegerLength(); }
+    //int* getBinaryInd(){return core_->getBinaryIndices();}
+    //int getBinaryLen(){return core_->getBinaryLength();}
         cout << endl;
 	    int first_var_idx = (smi.getCore())->getColStart(0);
 	    int last_var_idx = (smi.getCore())->getNumCols(0);  
@@ -55,7 +56,7 @@ void SmpsIO(const char * const name )
         double *diag_els = new double[total_ncols];
         for (int kk=0; kk< total_ncols; kk++){
             if (kk < last_var_idx){
-                diag_els[kk]=0.5;
+                diag_els[kk]=1.0;
             }
             else{
                 diag_els[kk]=0.0;
@@ -64,7 +65,7 @@ void SmpsIO(const char * const name )
         int status=0;
         int nThreads=1;  //Might want to experiment with this if you're using the more recent versions of CPLEX
         double MIP_TOL=1e-6;
-        int mode = 1; // mode = 0 for MIP, mode = 1 for QMIP
+        int mode = 0; // mode = 0 for MIP, mode = 1 for QMIP
         int opt_target;
         //int opt_target=CPX_OPTIMALITYTARGET_OPTIMALCONVEX; //For problems known a priori to be convex
         if (mode == 1){
@@ -130,8 +131,8 @@ void SmpsIO(const char * const name )
             smi.loadOsiSolverDataForScenarioSP(osi_cpx_scns[ii], ii);
             osi_cpx_scns[ii]->setObjSense(1.0);  // Set objective sense, MIN=1.0
             osi_cpx_scns[ii]->switchToMIP();
-            for (unsigned int nn = 0; nn < osi_cpx_scns[ii]->getNumCols(); nn++) {
-                osi_cpx_scns[ii]->setInteger(nn);
+            for (unsigned int nn = 0; nn < smi.getIntegerLen(); nn++) {
+                osi_cpx_scns[ii]->setInteger((smi.getIntegerInd())[nn]);
             }
 	        osi_cpx_scns[ii]->messageHandler()->setLogLevel(0); //Nice hack to suppress all output
 
